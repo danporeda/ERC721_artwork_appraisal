@@ -8,6 +8,7 @@ import streamlit as st
 load_dotenv()
 
 # Define and connect a new Web3 provider
+# Truffle suite Ganache blockchain: http://127.0.0.1:7545
 w3 = Web3(Web3.HTTPProvider(os.getenv("WEB3_PROVIDER_URI")))
 
 ################################################################################
@@ -40,9 +41,12 @@ contract = load_contract()
 ################################################################################
 st.title("Register New Artwork")
 accounts = w3.eth.accounts
-# Use a streamlit component to get the address of the artwork owner from the user
+# Use a streamlit component to get the address of the artwork owner,
+# artwork name, artist's name, and initial appraisal value.
 address = st.selectbox("Select Artwork Owner", options=accounts)
-
+artwork_name = st.text_input("Enter the name of the artwork")
+artist_name = st.text_input("Enter the artist name")
+initial_appraisal_value = st.text_input("Enter the initial appraisal amount")
 # Use a streamlit component to get the artwork's URI
 artwork_uri = st.text_input("The URI to the artwork")
 
@@ -51,13 +55,58 @@ if st.button("Register Artwork"):
     # Use the contract to send a transaction to the registerArtwork function
     tx_hash = contract.functions.registerArtwork(
         address,
-        artwork_uri
+        artwork_uri,
+        artwork_name,
+        artist_name,
+        initial_appraisal_value
     ).transact({'from': address, 'gas': 1000000})
     receipt = w3.eth.waitForTransactionReceipt(tx_hash)
     st.write("Transaction receipt mined:")
     st.write(dict(receipt))
 
 st.markdown("---")
+
+################################################################################
+# Appraise Art
+################################################################################
+st.markdown("## Appraise Artwork")
+tokens = contract.functions.totalSupply().call()
+token_id = st.selectbox("Choose an Art Token ID", list(range(tokens)))
+new_appraisal_value = st.text_input("Enter the new appraisal amount")
+report_uri = st.text_area("Enter notes about the appraisal")
+if st.button("Appraise Artwork"):
+
+    # Use the token_id and the report_uri to record the appraisal
+    tx_hash = contract.functions.newAppraisal(
+        token_id,
+        int(new_appraisal_value),
+        report_uri
+    ).transact({"from": w3.eth.accounts[0]})
+    receipt = w3.eth.waitForTransactionReceipt(tx_hash)
+    st.write(receipt)
+st.markdown("---")
+
+################################################################################
+# Get Appraisals
+################################################################################
+st.markdown("## Get the appraisal report history")
+total_supply = contract.functions.totalSupply() - 1
+art_token_id = st.number_input("Artwork ID: Tokens: 0 to {total_supply}", value=0, step=1)
+if st.button("Get Appraisal Reports"):
+    appraisal_filter = contract.events.Appraisal.createFilter(
+        fromBlock=0,
+        argument_filters={"tokenId": art_token_id}
+    )
+    appraisals = appraisal_filter.get_all_entries()
+    if appraisals:
+        for appraisal in appraisals:
+            report_dictionary = dict(appraisal)
+            st.markdown("### Appraisal Report Event Log")
+            st.write(report_dictionary)
+            st.markdown("### Appraisal Report Details")
+            st.write(report_dictionary["args"])
+    else:
+        st.write("This artwork has no new appraisals")
 
 ################################################################################
 # Display a Token
