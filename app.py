@@ -183,4 +183,3 @@ if st.button("Open"):
 
     token_uri = contract.functions.tokenURI(token_select).call()
     st.image(f"https://ipfs.io/ipfs/{token_uri}")
-
